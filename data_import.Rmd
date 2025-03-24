@@ -1,0 +1,15 @@
+---
+title: "data_import"
+author: "AKW"
+date: "2025-03-24"
+output: html_document
+---
+
+
+```{r}
+library(readxl)
+file_path<-"C:/Users/USER/Documents/repository/data/Outcome.csv"
+DATA_DUMMY <- read.csv(file_path)
+summary(DATA_DUMMY)
+
+```
