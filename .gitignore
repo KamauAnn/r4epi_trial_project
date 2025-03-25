@@ -2,6 +2,9 @@
 .Rhistory
 .RData
 .Ruserdata
+<<<<<<< HEAD
 .DS_store
 data/
 
+=======
+>>>>>>> origin/main
