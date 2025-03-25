@@ -13,3 +13,326 @@ DATA_DUMMY <- read.csv(file_path)
 summary(DATA_DUMMY)
 
 ```
+
+
+```{r}
+# Convert all character columns in DATA_DUMMY to factors to ease summary statistics
+
+DATA_DUMMY[] <- lapply(DATA_DUMMY, function(x) {
+  if(is.character(x)) as.factor(x) else x
+})
+library(dplyr)
+library(knitr)
+# Summarize the number of new cancer cases by year and cancer type
+summary_by_year_and_cancer_type <- DATA_DUMMY %>%
+  group_by(YearofDiagnosis, TypeofGyneCancer) %>%
+  summarise(total_cases = n()) %>%
+  arrange(YearofDiagnosis, TypeofGyneCancer)
+
+# View the summarized data
+kable(summary_by_year_and_cancer_type)
+```
+
+
+
+```{r}
+
+# Calculate deaths annually and by cancer type
+deaths_by_year_and_cancer_type <- DATA_DUMMY %>%
+  filter(Outcome == "Dead") %>%  # Filter for deaths
+  group_by(YearofDiagnosis, TypeofGyneCancer) %>%
+  summarise(total_deaths = n()) %>%   # Count deaths per year and cancer type
+  arrange(YearofDiagnosis, TypeofGyneCancer)
+
+# View the summarized data
+kable(deaths_by_year_and_cancer_type)
+
+
+```
+
+#Tabulating the incidence by cancer type
+```{r}
+# Separate tables for each type of cancer
+# Load tidyr package
+library(tidyr)
+
+# Combine into one table with separate columns for each cancer type
+combined_cancer_cases <- summary_by_year_and_cancer_type %>%
+  pivot_wider(names_from = TypeofGyneCancer, 
+              values_from = total_cases, 
+              values_fill = 0)  # Fill with 0 for missing values
+
+# View the combined table
+kable(combined_cancer_cases)
+
+```
+
+
+
+#plotting the trend of the cancers from 2018 to 2024
+```{r}
+# Load ggplot2 package
+library(ggplot2)
+
+# Create the line graph
+ggplot(summary_by_year_and_cancer_type, aes(x = YearofDiagnosis, 
+                                            y = total_cases, 
+                                            color = TypeofGyneCancer, 
+                                            group = TypeofGyneCancer)) +
+  geom_line(size = 1) +  # Create the line graph
+  geom_point(size = 2) +  # Add points for better visibility
+  labs(title = "Incidence of Gynecological Cancer Cases by Year and Cancer Type", 
+       x = "Year of Diagnosis", 
+       y = "Number of Cases", 
+       color = "Cancer Type") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+
+```
+
+#cumulative cases vs deaths by gynecologic cancer type
+```{r}
+# Step 1: Summarize incidence and deaths by cancer type
+# Incidence
+incidence_summary <- DATA_DUMMY %>%
+  group_by(TypeofGyneCancer) %>%
+  summarise(total_incidence = n())
+
+# Deaths
+death_summary <- DATA_DUMMY %>%
+  filter(Outcome == "Dead") %>%
+  group_by(TypeofGyneCancer) %>%
+  summarise(total_deaths = n())
+
+# Step 2: Merge incidence and death data
+cancer_summary <- full_join(incidence_summary, death_summary, by = "TypeofGyneCancer")
+
+
+
+# Replace any NA values (cases where no deaths were recorded) with 0
+cancer_summary[is.na(cancer_summary)] <- 0
+print(cancer_summary)
+
+# Step 3: Modify data for back-to-back plotting
+# Make the incidence negative for plotting on the left side
+cancer_summary <- cancer_summary %>%
+  mutate(total_incidence = -total_incidence)
+
+# Step 4: Plot the back-to-back bar chart with relabeled x-axis
+ggplot(cancer_summary, aes(y = TypeofGyneCancer)) +
+  geom_bar(aes(x = total_incidence), stat = "identity", fill = "blue") +  # Incidence (left side)
+  geom_bar(aes(x = total_deaths), stat = "identity", fill = "red") +      # Deaths (right side)
+  labs(title = "No. of cases                               Deaths",
+       x = "Count",
+       y = "Cancer Type") +
+  theme_minimal() +
+  coord_cartesian(xlim = c(-300, 300)) +
+  scale_x_continuous(labels = function(x) abs(x),   # Relabel x-axis to show positive values
+                     breaks = seq(-max(abs(cancer_summary$total_incidence)), max(cancer_summary$total_deaths), by = 50)) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+
+
+```
+
+
+# Summarize cancer cases by different indicators
+```{r}
+# Ensure DATA_DUMMY is a data frame/tibble
+DATA_DUMMY <- as_tibble(DATA_DUMMY)
+
+# Group by education level, calculate frequency, and percentage
+freq_by_education <- DATA_DUMMY %>%
+  group_by(LevelofEduc) %>%
+  summarise(frequency = n()) %>%
+  mutate(percentage = round((frequency / sum(frequency)) * 100, 1)) %>%
+  # Create a new column combining frequency and percentage
+  mutate(frequency_with_percentage = paste0(frequency, " (", percentage, "%)"))
+
+freq_by_education %>%
+  select(LevelofEduc, frequency_with_percentage) %>%
+  kable(col.names = c("Education Level", "Frequency (Percentage)"))
+
+
+# Group by age group, calculate frequency, and percentage
+freq_by_age <- DATA_DUMMY %>%
+  mutate(age_group = case_when(
+    Age < 20 ~ "<20",
+    Age >= 20 & Age< 30 ~ "20-29",
+    Age >= 30 & Age < 40 ~ "30-39",
+    Age >= 40 & Age < 50 ~ "40-49",
+    Age >= 50 & Age < 60 ~ "50-59",
+    Age >= 60 & Age < 70 ~ "60-69",
+    Age >= 70 ~ ">70"
+  )) %>%
+  group_by(age_group) %>%
+  summarise(frequency = n()) %>%
+  mutate(percentage = round((frequency / sum(frequency)) * 100, 1)) %>%
+  # Combine frequency and percentage into a single column
+  mutate(frequency_with_percentage = paste0(frequency, " (", percentage, "%)"))
+
+# Display the table with kable, showing combined frequency and percentage
+freq_by_age %>%
+  select(age_group, frequency_with_percentage) %>%
+  kable(col.names = c("Age Group", "Frequency (Percentage)"))
+
+
+
+# Group by marital status and calculate frequency
+freq_by_marital <- DATA_DUMMY %>%
+  group_by(Marital_status) %>%
+  summarise(frequency = n()) %>%
+  # Calculate percentage
+  mutate(percentage = round((frequency / sum(frequency)) * 100, 1)) %>%
+  # Create a new column combining frequency and percentage
+  mutate(frequency_with_percentage = paste0(frequency, " (", percentage, "%)"))
+
+# Display the table with kable, showing frequency with percentage in brackets
+freq_by_marital %>%
+  select(Marital_status, frequency_with_percentage) %>%
+  kable(col.names = c("Marital Status", "Frequency (Percentage)"))
+
+
+
+# Group by Subcounty, calculate frequency, and percentage
+freq_by_location <- DATA_DUMMY %>%
+  group_by(Subcounty) %>%
+  summarise(frequency = n(), .groups = 'drop') %>%
+  mutate(percentage = round((frequency / sum(frequency)) * 100, 1)) %>%
+  # Combine frequency and percentage into a single column
+  mutate(frequency_with_percentage = paste0(frequency, " (", percentage, "%)"))
+
+# Display the table with kable, showing combined frequency and percentage
+freq_by_location %>%
+  select(Subcounty, frequency_with_percentage) %>%
+  kable(col.names = c("Sub County", "Frequency (Percentage)"))
+
+
+# Group by Treatment type, calculate frequency, and percentage
+freq_by_treatment <- DATA_DUMMY %>%
+  group_by(Treatment) %>%
+  summarise(frequency = n(), .groups = 'drop') %>%
+  mutate(percentage = round((frequency / sum(frequency)) * 100, 1)) %>%
+  # Combine frequency and percentage into a single column
+  mutate(frequency_with_percentage = paste0(frequency, " (", percentage, "%)"))
+
+# Display the table with kable, showing combined frequency and percentage
+freq_by_treatment %>%
+  select(Treatment, frequency_with_percentage) %>%
+  kable(col.names = c("Treatment Type", "Frequency (Percentage)"))
+
+
+```
+
+
+# Summarize the number of cases by cancer stage
+```{r}
+summary_by_stage <- DATA_DUMMY %>%
+  group_by(Clinical_stage) %>%
+  summarise(total_cases = n()) %>%
+  arrange(desc(total_cases))
+
+# View the summarized data
+kable(summary_by_stage)
+
+
+# Summarize the number of cases by cancer stage and type
+summary_by_stage_and_type <- DATA_DUMMY %>%
+  group_by(Clinical_stage,TypeofGyneCancer) %>%
+  summarise(total_cases = n()) %>%
+  ungroup()  # Ungroup to avoid grouping issues
+
+# Reshape the data into a wide format for better readability
+summary_stage_wide <- summary_by_stage_and_type %>%
+  pivot_wider(names_from = TypeofGyneCancer, 
+              values_from = total_cases, 
+              values_fill = 0)  # Fill missing values with 0 for empty combinations
+
+# View the reshaped table
+kable(summary_stage_wide)
+
+
+```
+
+```{r}
+
+# Group and summarize the data
+cancer_by_education <- DATA_DUMMY %>%
+  group_by(LevelofEduc, TypeofGyneCancer) %>%
+  summarise(total_cases = n(), .groups = 'drop') %>%
+  pivot_wider(names_from = TypeofGyneCancer, 
+              values_from = total_cases, 
+              values_fill = 0) %>%
+  # Calculate the total number of cases for each education level
+  mutate(Total = rowSums(select(., where(is.numeric)))) %>%
+  # Calculate the percentage for each cancer type
+  mutate(across(where(is.numeric), 
+                ~ paste0(.x, " (", round(.x / Total * 100, 1), "%)"))) 
+
+# Print clean table with counts and percentages
+cancer_by_education %>%
+  kable()
+```
+
+
+
+```{r}
+
+
+# Group by marital status and calculate frequency
+freq_by_marital <- DATA_DUMMY %>%
+  group_by(Marital_status) %>%
+  summarise(frequency = n()) %>%
+  # Calculate percentage
+  mutate(percentage = round((frequency / sum(frequency)) * 100, 1)) %>%
+  # Create a new column combining frequency and percentage
+  mutate(frequency_with_percentage = paste0(frequency, " (", percentage, "%)"))
+
+# Display the table with kable, showing frequency with percentage in brackets
+freq_by_marital %>%
+  select(Marital_status, frequency_with_percentage) %>%
+  kable(col.names = c("Marital Status", "Frequency (Percentage)"))
+
+
+```
+
+# Objective two
+# part one;
+# Summarize cancer cases by subcounty and cancer type
+```{r}
+cancer_by_subcounty <- DATA_DUMMY %>%
+  group_by(Subcounty,TypeofGyneCancer) %>%
+  summarise(total_cases = n()) %>%
+  pivot_wider(names_from = TypeofGyneCancer, 
+              values_from = total_cases, 
+              values_fill = 0)  # Fill missing values with 0
+
+# View the result
+kable(cancer_by_subcounty)
+
+
+
+```
+
+## Objective Three
+#  COMORBIDITIES
+```{r}
+
+# Group by Comorbidities, calculate frequency, and percentage
+freq_by_location <- DATA_DUMMY %>%
+  group_by(Comorbidities) %>%
+  summarise(frequency = n(), .groups = 'drop') %>%
+  mutate(percentage = round((frequency / sum(frequency)) * 100, 1)) %>%
+  # Combine frequency and percentage into a single column
+  mutate(frequency_with_percentage = paste0(frequency, " (", percentage, "%)"))
+
+# Display the table with kable, showing combined frequency and percentage
+freq_by_location %>%
+  select(Comorbidities, frequency_with_percentage) %>%
+  kable(col.names = c("Cormonidities", "Frequency (Percentage)"))
+
+
+
+```
