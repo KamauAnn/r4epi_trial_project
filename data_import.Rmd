@@ -13,3 +13,20 @@ DATA_DUMMY <- read.csv(file_path)
 summary(DATA_DUMMY)
 
 ```
+```{r}
+# Convert all character columns in DATA_DUMMY to factors to ease summary statistics
+
+DATA_DUMMY[] <- lapply(DATA_DUMMY, function(x) {
+  if(is.character(x)) as.factor(x) else x
+})
+library(dplyr)
+library(knitr)
+# Summarize the number of new cancer cases by year and cancer type
+summary_by_year_and_cancer_type <- DATA_DUMMY %>%
+  group_by(YearofDiagnosis, TypeofGyneCancer) %>%
+  summarise(total_cases = n()) %>%
+  arrange(YearofDiagnosis, TypeofGyneCancer)
+
+# View the summarized data
+kable(summary_by_year_and_cancer_type)
+```
