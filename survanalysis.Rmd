@@ -57,6 +57,8 @@ cat("5-Year Survival Rate:", round(surv_5yr * 100, 2), "%\n")
 
 
 ```
+
+
 ```{r}
 ggsurvplot(km_fit, data = cancer_df,
            conf.int = TRUE, 

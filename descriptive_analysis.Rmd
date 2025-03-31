@@ -1,0 +1,125 @@
+---
+title: "Descriptive analysis"
+author: "AKW"
+date: "2025-03-31"
+output: html_document
+---
+
+```{r}
+
+#import dataset
+library(readxl)
+library(skimr)
+dummy_cancer_data <- read.csv("dummy_gyncancer_data.csv")
+View(dummy_cancer_data)
+
+skim(dummy_cancer_data)
+```
+#Data cleaning
+```{r}
+# Load necessary package
+library(dplyr)
+
+# Convert character date columns to Date format
+dummy_cancer_data <- dummy_cancer_data%>%
+  mutate(
+    Date_of_diagnosis = as.Date(Date_of_diagnosis, format="%Y-%m-%dT%H:%M:%S.000Z"),
+    Date_of_death = as.Date(Date_of_death, format="%Y-%m-%dT%H:%M:%S.000Z"),
+    Date_of_last_followup = as.Date(Date_of_last_followup, format="%Y-%m-%dT%H:%M:%S.000Z")
+  )
+
+# Check structure to confirm conversion
+str(dummy_cancer_data)
+
+
+```
+```{r}
+# Convert all character columns to factors
+dummy_cancer_data <- dummy_cancer_data %>%
+  mutate(across(where(is.character), as.factor))
+
+# Check structure to confirm conversion
+str(dummy_cancer_data)
+```
+
+
+```{r}
+dummy_cancer_data <- dummy_cancer_data %>%
+  mutate(
+    Survival_time = ifelse(!is.na(Date_of_death), 
+                           as.numeric(difftime(Date_of_death, Date_of_diagnosis, units="days")),
+                           as.numeric(difftime(Date_of_last_followup, Date_of_diagnosis, units="days"))
+    ) / 365.25  # Convert days to years
+  )
+dummy_cancer_data <- dummy_cancer_data %>%
+  mutate(
+    Event = ifelse(Vital_status == "Dead", 1, 0)
+  )
+
+head(dummy_cancer_data)
+
+```
+
+#Descriptive statistics
+```{r}
+# Frequency distribution of categorical variables
+table(dummy_cancer_data$Gynecological_cancer)
+table(dummy_cancer_data$Marital_status)
+table(dummy_cancer_data$Education_level)
+
+# Mean and standard deviation of numerical variables
+library(dplyr)
+
+dummy_cancer_data %>%
+  summarise(
+    Mean_Age = mean(Age_at_diagnosis, na.rm = TRUE),
+    SD_Age = sd(Age_at_diagnosis, na.rm = TRUE),
+    Mean_Survival = mean(Survival_time, na.rm = TRUE),
+    SD_Survival = sd(Survival_time, na.rm = TRUE)
+  )
+
+dummy_cancer_data %>% group_by(Gynecological_cancer)%>%
+  summarise(
+    Mean_Age = mean(Age_at_diagnosis, na.rm = TRUE),
+    SD_Age = sd(Age_at_diagnosis, na.rm = TRUE),
+    Mean_Survival = mean(Survival_time, na.rm = TRUE),
+    SD_Survival = sd(Survival_time, na.rm = TRUE)
+  )
+
+```
+```{r}
+chisq.test(table(dummy_cancer_data$Gynecological_cancer, dummy_cancer_data$Marital_status))
+chisq.test(table(dummy_cancer_data$Gynecological_cancer, dummy_cancer_data$Education_level))
+chisq.test(table(dummy_cancer_data$Gynecological_cancer, dummy_cancer_data$Cancer_stage))
+
+
+```
+
+
+```{r}
+# Define population estimates (from Kenya's 2019 Census)
+population_women_nakuru <- 1084835  
+
+
+# Compute prevalence
+prevalence_ovarian <- sum(dummy_cancer_data$Gynecological_cancer == "Ovarian cancer") / population_nakuru
+prevalence_endometrial <- sum(dummy_cancer_data$Gynecological_cancer == "Endometrial cancer") / population_nakuru
+prevalence_cervical <- sum(dummy_cancer_data$Gynecological_cancer == "Cervical cancer") / population_nakuru
+
+prevalence_ovarian * 100000  # Cases per 100,000 women
+prevalence_endometrial * 100000
+prevalence_cervical * 100000
+
+```
+
+
+```{r}
+
+# Extract the year
+dummy_cancer_data$Year_of_diagnosis <- year(dummy_cancer_data$Date_of_diagnosis)
+
+
+
+```
+
+

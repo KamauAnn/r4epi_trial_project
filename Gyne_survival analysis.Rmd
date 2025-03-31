@@ -1,0 +1,357 @@
+---
+title: "Gyne_survival"
+author: "AKW"
+date: "2025-03-31"
+output: html_document
+---
+
+```{r}
+set.seed(123)
+
+# Define sample size
+n <- 500  # Adjust as needed
+
+# Generate dummy data
+dummy_data <- data.frame(
+  Participant_ID = 1:n,
+  Age_at_diagnosis = sample(25:80, n, replace = TRUE),
+  Marital_status = sample(c("Single", "Married", "Separated", "Divorced", "Widowed"), n, replace = TRUE),
+  Education_level = sample(c("No education", "Primary", "Secondary", "Tertiary"), n, replace = TRUE),
+  Insurance_status = sample(c("Not insured", "Not insured, self pay", "NHIF", "Private insurance"), n, replace = TRUE),
+  County = sample(c("Nairobi", "Kisumu", "Mombasa", "Nakuru", "Eldoret"), n, replace = TRUE),
+  Source_of_income = sample(c("Employed", "Unemployed", "Self-employed", "Retired"), n, replace = TRUE),
+  Parity = sample(c("0", "1-2", "3-5", ">5"), n, replace = TRUE),
+  Date_of_diagnosis = format(as.POSIXct(as.Date("2018-01-01") + sample(0:(as.integer(as.Date("2024-06-30") - as.Date("2018-01-01"))), n, replace = TRUE)), "%Y-%m-%dT%H:%M:%S.000Z"),
+  Gynecological_cancer = sample(c("Cervical cancer", "Ovarian cancer", "Endometrial cancer"), n, replace = TRUE),
+  Family_history = sample(c("Yes", "No"), n, replace = TRUE),
+  Diagnosis_method = sample(c("Clinical diagnosis", "Biopsy", "Surgical Biopsy", "Unknown"), n, replace = TRUE),
+  Cancer_stage = sample(c("Stage I", "Stage II", "Stage III", "Stage IV"), n, replace = TRUE),
+  Tumor_size = sample(c("T1", "T2", "T3", "T4", "Unknown"), n, replace = TRUE),
+  Comorbidities = sample(c("Hypertension", "Diabetes", "Obesity", "Cardiovascular diseases", "HIV/AIDS"), n, replace = TRUE),
+  Treatment_status = sample(c("No treatment done", "Treatment done", "Active surveillance", "Unknown"), n, replace = TRUE),
+  Treatment_type = sample(c("Surgery", "Chemotherapy", "Hormone therapy", "Immunotherapy", "Radiotherapy"), n, replace = TRUE),
+  Cancer_status = sample(c("No evidence", "Evidence", "Unknown"), n, replace = TRUE),
+  Vital_status = sample(c("Alive", "Dead", "Lost to follow-up"), n, replace = TRUE)
+)
+
+# Assign Date of Death for deceased patients
+dummy_data$Date_of_death <- NA
+is_dead <- dummy_data$Vital_status == "Dead"
+dummy_data$Date_of_death[is_dead] <- format(as.POSIXct(dummy_data$Date_of_diagnosis[is_dead], format="%Y-%m-%dT%H:%M:%S.000Z") + sample(30:1825, sum(is_dead), replace = TRUE) * 86400, "%Y-%m-%dT%H:%M:%S.000Z")
+dummy_data$Date_of_death[is_dead] <- pmin(dummy_data$Date_of_death[is_dead], format(as.POSIXct("2024-06-30"), "%Y-%m-%dT%H:%M:%S.000Z"))
+
+# Ensure Date_of_last_followup is not earlier than Date_of_diagnosis
+dummy_data$Date_of_last_followup <- format(as.POSIXct(dummy_data$Date_of_diagnosis, format="%Y-%m-%dT%H:%M:%S.000Z") + sample(30:2190, n, replace = TRUE) * 86400, "%Y-%m-%dT%H:%M:%S.000Z")
+dummy_data$Date_of_last_followup <- pmax(dummy_data$Date_of_last_followup, dummy_data$Date_of_diagnosis)
+dummy_data$Date_of_last_followup <- pmin(dummy_data$Date_of_last_followup, format(as.POSIXct("2024-06-30"), "%Y-%m-%dT%H:%M:%S.000Z"))
+
+
+# View first few rows
+head(dummy_data)
+View(dummy_data)
+
+# Save as CSV
+write.csv(dummy_data, "dummy_gyncancer_data.csv", row.names = FALSE)
+
+```
+
+
+#import dataset
+```{r}
+library(readxl)
+dummy_cancer_data <- read.csv("dummy_gyncancer_data.csv")
+View(dummy_cancer_data)
+
+```
+
+#Data cleaning
+```{r}
+library(dplyr)
+library(lubridate)
+
+# Convert date columns to Date format
+dummy_cancer_data <- dummy_cancer_data %>%
+  mutate(
+    Date_of_diagnosis = as.POSIXct(Date_of_diagnosis, format="%Y-%m-%dT%H:%M:%S.000Z"),
+    Date_of_last_followup = as.POSIXct(Date_of_last_followup, format="%Y-%m-%dT%H:%M:%S.000Z"),
+    Date_of_death = as.POSIXct(Date_of_death, format="%Y-%m-%dT%H:%M:%S.000Z")
+  )
+
+```
+
+
+# Generating survival time  and event variables
+```{r}
+dummy_cancer_data <- dummy_cancer_data %>%
+  mutate(
+    Survival_time = ifelse(!is.na(Date_of_death), 
+                           as.numeric(difftime(Date_of_death, Date_of_diagnosis, units="days")),
+                           as.numeric(difftime(Date_of_last_followup, Date_of_diagnosis, units="days"))
+    ) / 365.25  # Convert days to years
+  )
+dummy_cancer_data <- dummy_cancer_data %>%
+  mutate(
+    Event = ifelse(Vital_status == "Dead", 1, 0)
+  )
+
+head(dummy_cancer_data)
+str(dummy_cancer_data)
+```
+
+
+# More data cleaning
+```{r}
+
+# Convert character date columns to Date format
+dummy_cancer_data <- dummy_cancer_data%>%
+  mutate(
+    Date_of_diagnosis = as.Date(Date_of_diagnosis, format="%Y-%m-%dT%H:%M:%S.000Z"),
+    Date_of_death = as.Date(Date_of_death, format="%Y-%m-%dT%H:%M:%S.000Z"),
+    Date_of_last_followup = as.Date(Date_of_last_followup, format="%Y-%m-%dT%H:%M:%S.000Z")
+  )
+
+# Convert all character columns to factors
+dummy_cancer_data <- dummy_cancer_data %>%
+  mutate(across(where(is.character), as.factor))
+
+# Check structure to confirm conversion
+str(dummy_cancer_data)
+
+```
+
+# Descriptive statistics
+```{r}
+# Frequency distribution of categorical variables
+table(dummy_cancer_data$Gynecological_cancer)
+table(dummy_cancer_data$Marital_status)
+table(dummy_cancer_data$Education_level)
+
+# Mean and standard deviation of numerical variables
+library(dplyr)
+
+dummy_cancer_data %>%
+  summarise(
+    Mean_Age = mean(Age_at_diagnosis, na.rm = TRUE),
+    SD_Age = sd(Age_at_diagnosis, na.rm = TRUE),
+    Mean_Survival = mean(Survival_time, na.rm = TRUE),
+    SD_Survival = sd(Survival_time, na.rm = TRUE)
+  )
+
+dummy_cancer_data %>% group_by(Gynecological_cancer)%>%
+  summarise(
+    Mean_Age = mean(Age_at_diagnosis, na.rm = TRUE),
+    SD_Age = sd(Age_at_diagnosis, na.rm = TRUE),
+    Mean_Survival = mean(Survival_time, na.rm = TRUE),
+    SD_Survival = sd(Survival_time, na.rm = TRUE)
+  )
+
+```
+
+# chi-square tests
+```{r}
+chisq.test(table(dummy_cancer_data$Gynecological_cancer, dummy_cancer_data$Marital_status))
+chisq.test(table(dummy_cancer_data$Gynecological_cancer, dummy_cancer_data$Education_level))
+chisq.test(table(dummy_cancer_data$Gynecological_cancer, dummy_cancer_data$Cancer_stage))
+
+```
+
+
+#Calaculation of prevalence
+```{r}
+# Define population estimates (from Kenya's 2019 Census)
+population_women_nakuru <- 1084835  
+
+
+# Compute prevalence
+prevalence_ovarian <- sum(dummy_cancer_data$Gynecological_cancer == "Ovarian cancer") / population_women_nakuru
+prevalence_endometrial <- sum(dummy_cancer_data$Gynecological_cancer == "Endometrial cancer") / population_women_nakuru
+prevalence_cervical <- sum(dummy_cancer_data$Gynecological_cancer == "Cervical cancer") / population_women_nakuru
+
+# Cases per 100,000 women
+round(prevalence_ovarian * 100000, 1) 
+round(prevalence_endometrial * 100000,1)
+round(prevalence_cervical * 100000, 1)
+
+```
+
+#Incidence rates
+```{r}
+
+
+```
+
+
+# Calculation of mortality rates
+```{r}
+mortality_ovarian <- sum(dummy_cancer_data$Gynecological_cancer == "Ovarian cancer" & dummy_cancer_data$Vital_status=="Dead") /population_women_nakuru
+mortality_endometrial <- sum(dummy_cancer_data$Gynecological_cancer == "Endometrial cancer" & dummy_cancer_data$Vital_status=="Dead") /population_women_nakuru
+mortality_cervical <- sum(dummy_cancer_data$Gynecological_cancer == "Cervical cancer" & dummy_cancer_data$Vital_status=="Dead") / population_women_nakuru
+
+# Deaths per 100,000
+round(mortality_ovarian*100000,1)
+round(mortality_endometrial*100000,1)
+round(mortality_cervical*100000,1)
+```
+
+
+# T-test of mean age between gynecological cancers
+```{r}
+
+cerv_data<-dummy_cancer_data%>%
+  filter(Gynecological_cancer=="Cervical cancer")
+ovar_data<-dummy_cancer_data%>%
+  filter(Gynecological_cancer=="Ovarian cancer")
+endom_data<-dummy_cancer_data%>%
+  filter(Gynecological_cancer=="Endometrial cancer")
+
+# T-test- To compare mean age by type of gynecological cancer
+
+t.test(cerv_data$Age_at_diagnosis, ovar_data$Age_at_diagnosis)
+t.test(cerv_data$Age_at_diagnosis, endom_data$Age_at_diagnosis)
+t.test(ovar_data$Age_at_diagnosis, endom_data$Age_at_diagnosis)
+```
+
+# Calculation of age-standardized rates
+```{r}
+dummy_cancer_data$Age_groups <- cut(dummy_cancer_data$Age_at_diagnosis, breaks = c(0,4, 9, 14, 19, 24, 29, 34, 39, 44, 49, 54, 59, 64, 69, 74, 79, 84, Inf), 
+labels = c("0-4","5-9","10-14","15-19","20-24", "25-29", "30-34","35-39","40-44", "45-49", "50-54", "55-59","60-64", "65-69", "70-74","75-79", "80-84", "85+"), right = FALSE)
+Nakuru_agegrp<-c(135314, 132242, 136219, 116178, 108930, 94315, 89498, 64480, 5124, 42614, 30965, 25376, 17059, 13295, 10321, 6772, 4247, 5076)
+WHO_pop<-c(12000,10000,9000,9000,8000,8000,6000,6000,6000,6000,5000,4000,4000,3000,2000,1000,500,500)
+age_Spec1<-dummy_cancer_data%>%
+  mutate(ASR_cerv=(sum(dummy_cancer_data$Gynecological_cancer=="Cervical cancer"/)))
+  
+```
+
+
+# Survival analysis
+```{r}
+library(survival)
+library(survminer)
+surv_objcerv<-Surv(time=cerv_data$Survival_time, event = cerv_data$Event)
+
+KM_fit1<-survfit(surv_obj~1, data=cerv_data)
+
+# Summary of survival at specific time points
+summary(KM_fit, times = c(2, 5))  # 2-year and 5-year survival rates
+
+surv_objovar<-Surv(time=ovar_data$Survival_time, event = ovar_data$Event)
+
+KM_fit2<-survfit(surv_objovar~1, data=ovar_data)
+
+# Summary of survival at specific time points
+summary(KM_fit2, times = c(2, 5))  # 2-year and 5-year survival rates
+
+surv_objendom<-Surv(time=endom_data$Survival_time, event = endom_data$Event)
+
+KM_fit3<-survfit(surv_objendom~1, data=endom_data)
+
+# Summary of survival at specific time points
+summary(KM_fit3, times = c(2, 5))  # 2-year and 5-year survival rates
+
+```
+
+
+# 2-year and 5-year survival rates 
+```{r}
+# Extract survival probabilities at 2 and 5 years
+surv_2yr <- summary(KM_fit1, times = 2)$surv
+surv_5yr <- summary(KM_fit1, times = 5)$surv
+
+# Print survival rates
+cat("2-Year Survival Rate for cervical cancer:", round(surv_2yr * 100, 2), "%\n")
+cat("5-Year Survival Rate for cervical cancer:", round(surv_5yr * 100, 2), "%\n")
+
+# Extract survival probabilities at 2 and 5 years
+surv_2yr <- summary(KM_fit2, times = 2)$surv
+surv_5yr <- summary(KM_fit2, times = 5)$surv
+
+# Print survival rates
+cat("2-Year Survival Rate for ovarian cancer:", round(surv_2yr * 100, 2), "%\n")
+cat("5-Year Survival Rate for ovarian cancer:", round(surv_5yr * 100, 2), "%\n")
+
+# Extract survival probabilities at 2 and 5 years
+surv_2yr <- summary(KM_fit3, times = 2)$surv
+surv_5yr <- summary(KM_fit3, times = 5)$surv
+
+# Print survival rates
+cat("2-Year Survival Rate for endometrial cancer:", round(surv_2yr * 100, 2), "%\n")
+cat("5-Year Survival Rate for endometrial cancer:", round(surv_5yr * 100, 2), "%\n")
+```
+
+# Plots of survival rates
+```{r}
+ggsurvplot(KM_fit1, data = cerv_data,
+           conf.int = TRUE, 
+           xlab = "Time (Years)", 
+           ylab = "Survival Probability",
+           title = "Kaplan-Meier Survival Curve for Cervical Cancer",
+           risk.table = TRUE)
+
+ggsurvplot(KM_fit2, data = ovar_data,
+           conf.int = TRUE, 
+           xlab = "Time (Years)", 
+           ylab = "Survival Probability",
+           title = "Kaplan-Meier Survival Curve for Ovarian Cancer",
+           risk.table = TRUE)
+
+ggsurvplot(KM_fit3, data = endom_data,
+           conf.int = TRUE, 
+           xlab = "Time (Years)", 
+           ylab = "Survival Probability",
+           title = "Kaplan-Meier Survival Curv for Endometrial Cancer",
+           risk.table = TRUE)
+```
+```{r}
+km_fit_grouped1 <- survfit(surv_objcerv ~ Cancer_stage, data = cerv_data)
+
+ggsurvplot(km_fit_grouped1, data = cerv_data, 
+           pval = TRUE, 
+           conf.int = TRUE, 
+           risk.table = TRUE,
+            risk.table.height = 0.25,            # Reduce risk table height
+  risk.table.y.text = FALSE,           # Hide y-axis labels in risk table
+  surv.median.line = "hv",             # Add median survival lines
+  ggtheme = theme_minimal(),           # Clean theme
+  xlab = "Time (years)",               
+  ylab = "Survival Probability",
+  
+  # **Fix overlapping text**
+  legend.labs = c("Stage I", "Stage II", "Stage III", "Stage IV"),  # Rename labels
+  legend.title = "Cancer Stage",
+  legend = "right",                         # Move legend to right
+  tables.theme = theme_cleantable(),        # Clean table format
+  font.x = c(10, "plain"),                   # Reduce x-axis font size
+  font.y = c(10, "plain"),                   # Reduce y-axis font size
+  font.tickslab = c(8, "plain"),             # Reduce tick labels size
+  font.legend = c(8, "plain"),               # Reduce legend text size
+  font.risk.table = c(8, "plain")            # Reduce risk table font size
+)
+
+
+```
+
+
+#Cox Proportional Hazards Model for Risk Factors
+```{r}
+# Fit the Cox Proportional Hazards Model
+cox_model <- coxph(surv_obj ~ Age_at_diagnosis+ Marital_status+ Education_level + Insurance_status+ Source_of_income+ Parity+ Family_history+Cancer_stage+ Tumor_size+ Treatment_type+ County, data = dummy_cancer_data)
+
+# Summary of the model
+summary(cox_model)
+```
+
+
+```{r}
+cox_model1 <- coxph(surv_obj ~ Age_at_diagnosis+ Marital_status+ Education_level + Insurance_status+ Source_of_income+County, data = dummy_cancer_data)
+summary(cox_model1)
+ggforest(cox_model1, data = dummy_cancer_data)
+
+```
+
+
+```{r}
+cox_model2 <- coxph(surv_obj ~ Parity+ Family_history+Cancer_stage+ Tumor_size+ Treatment_type, data = dummy_cancer_data)
+summary(cox_model2)
+ggforest(cox_model2, data = dummy_cancer_data)
+
+```
