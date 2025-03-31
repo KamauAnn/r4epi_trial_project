@@ -1,0 +1,97 @@
+---
+title: "Survival analysis trial"
+author: "AKW"
+date: "2025-03-31"
+output: html_document
+---
+
+```{r}
+# Load necessary library
+
+library(survival)
+library(survminer)
+library(dplyr)
+
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Generate sample data
+cancer_df <- data.frame(
+  patient_id = 1:100,  # 100 patients
+  time = sample(6:120, 100, replace = TRUE),  # Follow-up time in months
+  status = sample(0:1, 100, replace = TRUE, prob = c(0.7, 0.3)),  # 30% deceased
+  age = sample(30:80, 100, replace = TRUE),  # Age range 30-80
+  treatment = sample(c("Chemotherapy", "Radiotherapy", "Surgery"), 100, replace = TRUE),
+  clinical_stage = sample(c("Stage I", "Stage II", "Stage III", "Stage IV"), 100, replace = TRUE)
+)
+
+# Convert time to years
+cancer_df$time <- cancer_df$time / 12  
+
+# View first few rows
+head(cancer_df)
+View(cancer_df)
+
+
+```
+
+```{r}
+
+surv_obj <- Surv(time = cancer_df$time, event = cancer_df$status)
+
+km_fit <- survfit(surv_obj ~ 1, data = cancer_df)
+
+# Summary of survival at specific time points
+summary(km_fit, times = c(2, 5))  # 2-year and 5-year survival rates
+
+```
+```{r}
+# Extract survival probabilities at 2 and 5 years
+surv_2yr <- summary(km_fit, times = 2)$surv
+surv_5yr <- summary(km_fit, times = 5)$surv
+
+# Print survival rates
+cat("2-Year Survival Rate:", round(surv_2yr * 100, 2), "%\n")
+cat("5-Year Survival Rate:", round(surv_5yr * 100, 2), "%\n")
+
+
+```
+```{r}
+ggsurvplot(km_fit, data = cancer_df,
+           conf.int = TRUE, 
+           xlab = "Time (Years)", 
+           ylab = "Survival Probability",
+           title = "Kaplan-Meier Survival Curve",
+           risk.table = TRUE)
+```
+```{r}
+km_fit_grouped <- survfit(surv_obj ~ treatment, data = cancer_df)
+
+ggsurvplot(km_fit_grouped, data = cancer_df, 
+           pval = TRUE, 
+           conf.int = TRUE, 
+           risk.table = TRUE,
+           legend.title = "Treatment Type")
+
+
+```
+## **8. Cox Proportional Hazards Model for Risk Factors**
+The Cox model estimates the effect of multiple covariates on survival time.
+
+```{r}
+# Fit the Cox Proportional Hazards Model
+cox_model <- coxph(surv_obj ~ age + treatment + clinical_stage, data = cancer_df)
+
+# Summary of the model
+summary(cox_model)
+```
+
+
+## **9. Plot Hazard Ratios**
+```{r}
+ggforest(cox_model, data = cancer_df)
+```
+
+
+
