@@ -26,10 +26,17 @@ dummy_data <- data.frame(
   Family_history = sample(c("Yes", "No"), n, replace = TRUE),
   Diagnosis_method = sample(c("Clinical diagnosis", "Biopsy", "Surgical Biopsy", "Unknown"), n, replace = TRUE),
   Cancer_stage = sample(c("Stage I", "Stage II", "Stage III", "Stage IV"), n, replace = TRUE),
+<<<<<<< HEAD
   Tumor_size = sample(c("T1", "T2", "T3", "T4", "Unknown"), n, replace = TRUE),
   Comorbidities = sample(c("Hypertension", "Diabetes", "Obesity", "Cardiovascular diseases", "HIV/AIDS"), n, replace = TRUE),
   Treatment_status = sample(c("No treatment done", "Treatment done", "Active surveillance", "Unknown"), n, replace = TRUE),
   Treatment_type = sample(c("Surgery", "Chemotherapy", "Hormone therapy", "Immunotherapy", "Radiotherapy"), n, replace = TRUE),
+=======
+  Tumor_size = sample(c("No mass", "Unknown", "Other"), n, replace = TRUE),
+  Comorbidities = sample(c("None", "Hypertension", "Diabetes", "Obesity", "Cardiovascular diseases", "HIV/AIDS"), n, replace = TRUE),
+  Treatment_status = sample(c("No treatment done", "Treatment done", "Active surveillance", "Unknown"), n, replace = TRUE),
+  Treatment_type = sample(c("Surgery", "Chemotherapy", "Hormone therapy", "Immunotherapy", "Other"), n, replace = TRUE),
+>>>>>>> origin/main
   Cancer_status = sample(c("No evidence", "Evidence", "Unknown"), n, replace = TRUE),
   Vital_status = sample(c("Alive", "Dead", "Lost to follow-up"), n, replace = TRUE)
 )
@@ -56,15 +63,26 @@ write.csv(dummy_data, "dummy_gyncancer_data.csv", row.names = FALSE)
 ```
 
 
+<<<<<<< HEAD
 #import dataset
 ```{r}
+=======
+
+```{r}
+
+#import dataset
+>>>>>>> origin/main
 library(readxl)
 dummy_cancer_data <- read.csv("dummy_gyncancer_data.csv")
 View(dummy_cancer_data)
 
 ```
 
+<<<<<<< HEAD
 #Data cleaning
+=======
+
+>>>>>>> origin/main
 ```{r}
 library(dplyr)
 library(lubridate)
@@ -80,7 +98,10 @@ dummy_cancer_data <- dummy_cancer_data %>%
 ```
 
 
+<<<<<<< HEAD
 # Generating survival time  and event variables
+=======
+>>>>>>> origin/main
 ```{r}
 dummy_cancer_data <- dummy_cancer_data %>%
   mutate(
@@ -95,6 +116,7 @@ dummy_cancer_data <- dummy_cancer_data %>%
   )
 
 head(dummy_cancer_data)
+<<<<<<< HEAD
 str(dummy_cancer_data)
 ```
 
@@ -152,10 +174,13 @@ dummy_cancer_data %>% group_by(Gynecological_cancer)%>%
 chisq.test(table(dummy_cancer_data$Gynecological_cancer, dummy_cancer_data$Marital_status))
 chisq.test(table(dummy_cancer_data$Gynecological_cancer, dummy_cancer_data$Education_level))
 chisq.test(table(dummy_cancer_data$Gynecological_cancer, dummy_cancer_data$Cancer_stage))
+=======
+>>>>>>> origin/main
 
 ```
 
 
+<<<<<<< HEAD
 #Calaculation of prevalence
 ```{r}
 # Define population estimates (from Kenya's 2019 Census)
@@ -230,10 +255,19 @@ library(survminer)
 surv_objcerv<-Surv(time=cerv_data$Survival_time, event = cerv_data$Event)
 
 KM_fit1<-survfit(surv_obj~1, data=cerv_data)
+=======
+```{r}
+library(survival)
+library(survminer)
+surv_obj<-Surv(time=dummy_cancer_data$Survival_time, event = dummy_cancer_data$Event)
+
+KM_fit<-survfit(surv_obj~1, data=dummy_cancer_data)
+>>>>>>> origin/main
 
 # Summary of survival at specific time points
 summary(KM_fit, times = c(2, 5))  # 2-year and 5-year survival rates
 
+<<<<<<< HEAD
 surv_objovar<-Surv(time=ovar_data$Survival_time, event = ovar_data$Event)
 
 KM_fit2<-survfit(surv_objovar~1, data=ovar_data)
@@ -247,10 +281,25 @@ KM_fit3<-survfit(surv_objendom~1, data=endom_data)
 
 # Summary of survival at specific time points
 summary(KM_fit3, times = c(2, 5))  # 2-year and 5-year survival rates
+=======
+```
+
+
+```{r}
+# Extract survival probabilities at 2 and 5 years
+surv_2yr <- summary(KM_fit, times = 2)$surv
+surv_5yr <- summary(KM_fit, times = 5)$surv
+
+# Print survival rates
+cat("2-Year Survival Rate:", round(surv_2yr * 100, 2), "%\n")
+cat("5-Year Survival Rate:", round(surv_5yr * 100, 2), "%\n")
+
+>>>>>>> origin/main
 
 ```
 
 
+<<<<<<< HEAD
 # 2-year and 5-year survival rates 
 ```{r}
 # Extract survival probabilities at 2 and 5 years
@@ -305,6 +354,20 @@ ggsurvplot(KM_fit3, data = endom_data,
 km_fit_grouped1 <- survfit(surv_objcerv ~ Cancer_stage, data = cerv_data)
 
 ggsurvplot(km_fit_grouped1, data = cerv_data, 
+=======
+```{r}
+ggsurvplot(KM_fit, data = dummy_cancer_data,
+           conf.int = TRUE, 
+           xlab = "Time (Years)", 
+           ylab = "Survival Probability",
+           title = "Kaplan-Meier Survival Curve",
+           risk.table = TRUE)
+```
+```{r}
+km_fit_grouped <- survfit(surv_obj ~ Cancer_stage, data = dummy_cancer_data)
+
+ggsurvplot(km_fit_grouped, data = dummy_cancer_data, 
+>>>>>>> origin/main
            pval = TRUE, 
            conf.int = TRUE, 
            risk.table = TRUE,
@@ -329,8 +392,11 @@ ggsurvplot(km_fit_grouped1, data = cerv_data,
 
 
 ```
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> origin/main
 #Cox Proportional Hazards Model for Risk Factors
 ```{r}
 # Fit the Cox Proportional Hazards Model
@@ -339,8 +405,11 @@ cox_model <- coxph(surv_obj ~ Age_at_diagnosis+ Marital_status+ Education_level 
 # Summary of the model
 summary(cox_model)
 ```
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> origin/main
 ```{r}
 cox_model1 <- coxph(surv_obj ~ Age_at_diagnosis+ Marital_status+ Education_level + Insurance_status+ Source_of_income+County, data = dummy_cancer_data)
 summary(cox_model1)
